@@ -1,11 +1,36 @@
 # 🏠 RWA Tokenizer — Fractional Real Estate on Solana
 
-> Tokenize real estate. Buy fractional shares. Earn yield. Verified by Kazakhstan state digital signature (ЭЦП НУЦ РК).
+> 🇬🇧 **EN:** Tokenize real estate. Buy fractional shares. Earn yield. Verified by Kazakhstan state digital signature (ЭЦП НУЦ РК).
+>
+> 🇷🇺 **RU:** Токенизируй недвижимость. Покупай доли. Получай доход. Право собственности подтверждено государственной ЭЦП НУЦ РК и записано на блокчейне Solana.
 
 [![Solana](https://img.shields.io/badge/Solana-Devnet-9945FF?logo=solana)](https://solana.com)
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
 ---
+
+## 🇷🇺 О проекте (Russian)
+
+**RWA Tokenizer** — платформа для фракционного владения недвижимостью на блокчейне Solana.
+
+**Ключевая идея:** Владелец объекта подписывает документ о праве собственности через **ЭЦП НУЦ РК** (государственная электронная подпись Казахстана). Хэш подписи хранится на Solana — токены выпускаются только после проверки. Это решает проблему «proof-of-asset» без централизованного посредника.
+
+**Пользовательский сценарий:**
+1. Владелец подписывает документ через ЭЦП → хэш записывается on-chain
+2. Выпускается 1 000 000 SPL токенов = 100% собственности
+3. Инвесторы покупают доли через Phantom Wallet от $1
+4. Вторичный рынок: P2P торговля токенами
+5. Арендный доход распределяется пропорционально долям on-chain
+
+**Запуск:**
+```bash
+cd scripts && npm install && npm run demo   # CLI-демо (5 фаз)
+cd app && npm install && npm run dev        # Веб-интерфейс → localhost:3000
+```
+
+---
+
+## 🇬🇧 About (English)
 
 ## The Problem
 
