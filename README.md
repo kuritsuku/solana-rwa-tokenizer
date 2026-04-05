@@ -4,8 +4,13 @@
 >
 > 🇷🇺 **RU:** Токенизируй недвижимость. Покупай доли. Получай доход. Право собственности подтверждено государственной ЭЦП НУЦ РК и записано на блокчейне Solana.
 
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-solana--rwa--tokenizer.vercel.app-14F195?logo=vercel)](https://solana-rwa-tokenizer.vercel.app)
 [![Solana](https://img.shields.io/badge/Solana-Devnet-9945FF?logo=solana)](https://solana.com)
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+
+## 🌐 Live Demo
+
+**→ https://solana-rwa-tokenizer.vercel.app**
 
 ---
 
@@ -86,7 +91,7 @@ This replaces a centralized oracle with a **government-grade cryptographic proof
 | Smart contract (program) | ✅ SPL Token + custom Anchor program (in progress) |
 | Create / issue tokens | ✅ `tokenizeProperty()` → createMint + mintTo |
 | Manage ownership / transactions | ✅ ATA creation, transfer, yield distribution |
-| Basic interface | ✅ CLI demo + Next.js web app (in progress) |
+| Basic interface | ✅ CLI demo + Next.js web app (live on Vercel) |
 | Real asset ↔ token link | ✅ ЭЦП signature hash stored on-chain |
 
 ---
@@ -163,7 +168,7 @@ npm run dev   # → http://localhost:3000
 - [x] CLI end-to-end demo (simulation + Devnet)
 - [x] ЭЦП proof-of-asset integration
 - [ ] Anchor custom program deployment on Devnet
-- [ ] Next.js web UI with Phantom Wallet
+- [x] Next.js web UI with Phantom Wallet (live: https://solana-rwa-tokenizer.vercel.app)
 - [ ] Token-2022 TransferHook (KYC whitelist)
 - [ ] USDC yield distribution (instead of SOL)
 - [ ] Real NCALayer API integration
