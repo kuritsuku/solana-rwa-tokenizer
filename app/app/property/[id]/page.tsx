@@ -1,5 +1,6 @@
 import { PROPERTIES, formatUsd } from "../../../lib/mockData";
 import { notFound } from "next/navigation";
+import BuyButton from "../../../components/BuyButton";
 
 export default async function PropertyPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -115,12 +116,7 @@ export default async function PropertyPage({ params }: { params: Promise<{ id: s
               </div>
             </div>
 
-            <button style={{ width: "100%", background: "linear-gradient(135deg, #9945FF, #14F195)", color: "#000", fontWeight: 700, fontSize: 16, border: "none", borderRadius: 12, padding: "14px 0", cursor: "pointer", marginBottom: 12 }}>
-              🔗 Подключить Phantom Wallet
-            </button>
-            <p style={{ fontSize: 12, color: "#6b6b80", textAlign: "center" }}>
-              Право собственности подтверждено ЭЦП НУЦ РК · Сеть Solana Devnet
-            </p>
+            <BuyButton pricePerShare={p.pricePerShare} propertyName={p.name} />
           </div>
         </div>
       </div>

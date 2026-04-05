@@ -100,7 +100,7 @@ export default function MarketplacePage() {
         </p>
 
         {/* Stats */}
-        <div style={{ display: "flex", justifyContent: "center", gap: 48, marginBottom: 16 }}>
+        <div style={{ display: "flex", justifyContent: "center", gap: 48, marginBottom: 32 }}>
           {[
             { label: "Токенизировано", value: "$1.93M" },
             { label: "Инвесторов", value: "247" },
@@ -109,6 +109,22 @@ export default function MarketplacePage() {
             <div key={s.label} style={{ textAlign: "center" }}>
               <div style={{ fontSize: 28, fontWeight: 700, color: "#e8e8f0" }}>{s.value}</div>
               <div style={{ fontSize: 13, color: "#6b6b80" }}>{s.label}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Why Solana */}
+        <div style={{ display: "flex", justifyContent: "center", gap: 16, flexWrap: "wrap" }}>
+          {[
+            { icon: "⚡", label: "400ms", desc: "финализация блока" },
+            { icon: "💸", label: "$0.00025", desc: "комиссия за транзакцию" },
+            { icon: "🔐", label: "SPL Token", desc: "стандарт токенов" },
+            { icon: "🇰🇿", label: "ЭЦП НУЦ РК", desc: "proof-of-asset" },
+          ].map((f) => (
+            <div key={f.label} style={{ display: "flex", alignItems: "center", gap: 8, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, padding: "8px 16px" }}>
+              <span style={{ fontSize: 16 }}>{f.icon}</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: "#e8e8f0" }}>{f.label}</span>
+              <span style={{ fontSize: 12, color: "#6b6b80" }}>{f.desc}</span>
             </div>
           ))}
         </div>
