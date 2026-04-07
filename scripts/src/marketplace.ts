@@ -1,5 +1,8 @@
-import { Keypair } from "@solana/web3.js";
-import { transfer } from "@solana/spl-token";
+import { Keypair, Transaction, sendAndConfirmTransaction } from "@solana/web3.js";
+import {
+  TOKEN_2022_PROGRAM_ID,
+  createTransferCheckedWithTransferHookInstruction,
+} from "@solana/spl-token";
 import { connection, COMMITMENT } from "./config";
 import { MOCK_MODE } from "./wallet";
 import { simTransferTokens } from "./simulator";
@@ -19,10 +22,21 @@ export async function transferShares(
       from.mintAddress, from.wallet.publicKey, to.wallet.publicKey, BigInt(shareAmount)
     );
   } else {
-    signature = await transfer(
-      connection, fromKeypair, from.tokenAccount, to.tokenAccount,
-      fromKeypair, BigInt(shareAmount), [], { commitment: COMMITMENT }
+    const ix = await createTransferCheckedWithTransferHookInstruction(
+      connection,
+      from.tokenAccount,
+      from.mintAddress,
+      to.tokenAccount,
+      fromKeypair.publicKey,
+      BigInt(shareAmount),
+      from.mintDecimals,
+      [],
+      COMMITMENT,
+      TOKEN_2022_PROGRAM_ID,
     );
+
+    const tx = new Transaction().add(ix);
+    signature = await sendAndConfirmTransaction(connection, tx, [fromKeypair], { commitment: COMMITMENT });
   }
   from.sharesOwned -= shareAmount;
   to.sharesOwned += shareAmount;

@@ -1,10 +1,11 @@
 import chalk from "chalk";
 import { connection, DEMO_PROPERTY, INVESTOR_PURCHASES, SECONDARY_TRANSFER_SHARES, ANNUAL_YIELD_USDC, USDC_MINT_DEVNET, USDC_DECIMALS } from "./config";
-import { generateKeypair, fundWalletsFromIssuer, getBalanceSol, setMockMode } from "./wallet";
+import { generateKeypair, fundWalletsFromIssuer, getBalanceSol, loadKeypairFromFile, setMockMode } from "./wallet";
 import { tokenizeProperty } from "./property";
 import { createInvestorRecord, purchaseShares } from "./investors";
 import { transferShares, getOwnershipSnapshot } from "./marketplace";
 import { distributeYield } from "./yield";
+import { initializeTransferHookForMint } from "./transferHook";
 import { simFundUsdcPool } from "./simulator";
 import { PublicKey } from "@solana/web3.js";
 import {
@@ -15,6 +16,13 @@ import {
 
 async function main(): Promise<void> {
   const useDevnet = process.argv.includes("--devnet");
+  const withTransferHook = process.argv.includes("--with-transfer-hook");
+  const issuerKeypairArgIndex = process.argv.indexOf("--issuer-keypair");
+  const issuerKeypairPathFromArg = issuerKeypairArgIndex >= 0 ? process.argv[issuerKeypairArgIndex + 1] : undefined;
+  if (issuerKeypairArgIndex >= 0 && !issuerKeypairPathFromArg) {
+    throw new Error("Missing value for --issuer-keypair. Example: --issuer-keypair C:\\\\keys\\\\devnet.json");
+  }
+  const issuerKeypairPath = issuerKeypairPathFromArg || process.env.ISSUER_KEYPAIR_PATH;
   if (useDevnet) setMockMode(false);
 
   printBanner();
@@ -28,14 +36,23 @@ async function main(): Promise<void> {
     } catch {
       printWarn("Could not reach Devnet");
     }
+    if (!withTransferHook) {
+      printWarn("TransferHook is disabled for this run (use --with-transfer-hook to enable).");
+    }
   }
 
   // ── PHASE 0: Wallets ─────────────────────────────────────────────────────
   printPhaseHeader(0, "WALLET SETUP & FUNDING");
-  printInfo("Generating keypairs...");
+  printInfo("Preparing wallets...");
 
-  const issuer = generateKeypair();
+  const issuer = (useDevnet && issuerKeypairPath)
+    ? loadKeypairFromFile(issuerKeypairPath)
+    : generateKeypair();
   const investorKeypairs = INVESTOR_PURCHASES.map(() => generateKeypair());
+
+  if (useDevnet && issuerKeypairPath) {
+    printInfo(`Using fixed issuer keypair: ${issuer.publicKey.toBase58()}`);
+  }
 
   printInfo("Funding wallets (single airdrop → issuer distributes to investors)...\n");
 
@@ -61,11 +78,23 @@ async function main(): Promise<void> {
   printStep("ЭЦП Signature", "✓ Verified", `hash: ${DEMO_PROPERTY.edsHash}`);
   printInfo("Creating SPL Token mint backed by EDS-verified document...\n");
 
-  const tokenResult = await tokenizeProperty(DEMO_PROPERTY, issuer);
+  const tokenResult = await tokenizeProperty(DEMO_PROPERTY, issuer, { enableTransferHook: withTransferHook });
   printPropertyCard(tokenResult);
-  printStep("Token Standard",    "Token-2022 + TransferHook (KYC)");
+  printStep(
+    "Token Standard",
+    withTransferHook ? "Token-2022 + TransferHook (KYC)" : "Token-2022",
+  );
   printStep("Mint authority",    "Issuer (Property Owner)");
   printStep("Freeze authority",  "None — freely transferable");
+  if (useDevnet && withTransferHook) {
+    printInfo("Initializing TransferHook KYC whitelist + extra account metas...");
+    await initializeTransferHookForMint(
+      tokenResult.property.mintAddress,
+      issuer,
+      [issuer.publicKey, ...investorKeypairs.map((kp) => kp.publicKey)],
+    );
+    printStep("TransferHook", "✓ Ready", "whitelist + extra metas configured");
+  }
   console.log();
 
   // ── PHASE 2: Primary market ───────────────────────────────────────────────
@@ -74,7 +103,12 @@ async function main(): Promise<void> {
 
   const investorRecords = await Promise.all(
     INVESTOR_PURCHASES.map((p, i) =>
-      createInvestorRecord(p.name, investorKeypairs[i], tokenResult.property.mintAddress)
+      createInvestorRecord(
+        p.name,
+        investorKeypairs[i],
+        tokenResult.property.mintAddress,
+        tokenResult.property.decimals,
+      )
     )
   );
 
@@ -107,8 +141,20 @@ async function main(): Promise<void> {
   if (!useDevnet) {
     await simFundUsdcPool(issuer, new PublicKey(USDC_MINT_DEVNET), ANNUAL_YIELD_USDC, USDC_DECIMALS);
   }
-  const yieldResult = await distributeYield(ANNUAL_YIELD_USDC, tokenResult.property, investorRecords, issuer);
-  printYieldReport(yieldResult);
+  try {
+    const yieldResult = await distributeYield(ANNUAL_YIELD_USDC, tokenResult.property, investorRecords, issuer);
+    printYieldReport(yieldResult);
+  } catch (err) {
+    if (useDevnet) {
+      const reason =
+        err instanceof Error
+          ? (err.message || err.name || String(err))
+          : String(err);
+      printWarn(`Yield distribution skipped: ${reason}`);
+    } else {
+      throw err;
+    }
+  }
 
   // ── PHASE 5: Final state ──────────────────────────────────────────────────
   printPhaseHeader(5, "FINAL PORTFOLIO STATE");

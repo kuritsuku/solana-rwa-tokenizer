@@ -1,5 +1,6 @@
 "use client";
-import { PROPERTIES, formatUsd, Property } from "../lib/mockData";
+import { useEffect, useState } from "react";
+import { formatUsd, getAllProperties, Property } from "../lib/mockData";
 
 function PropertyCard({ p }: { p: Property }) {
   const soldPct = Math.round((p.soldShares / p.totalShares) * 100);
@@ -82,6 +83,20 @@ function PropertyCard({ p }: { p: Property }) {
 }
 
 export default function MarketplacePage() {
+  const [properties, setProperties] = useState<Property[]>([]);
+
+  useEffect(() => {
+    setProperties(getAllProperties());
+    const onFocus = () => setProperties(getAllProperties());
+    const onStorage = () => setProperties(getAllProperties());
+    window.addEventListener("focus", onFocus);
+    window.addEventListener("storage", onStorage);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      window.removeEventListener("storage", onStorage);
+    };
+  }, []);
+
   return (
     <main style={{ maxWidth: 1200, margin: "0 auto", padding: "48px 24px" }}>
       {/* Hero */}
@@ -155,7 +170,7 @@ export default function MarketplacePage() {
         <h2 style={{ fontSize: 22, fontWeight: 700, color: "#e8e8f0", marginBottom: 8 }}>Открытые объекты</h2>
         <p style={{ fontSize: 14, color: "#6b6b80", marginBottom: 32 }}>Все объекты верифицированы через ЭЦП НУЦ РК</p>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))", gap: 24 }}>
-          {PROPERTIES.map((p) => <PropertyCard key={p.id} p={p} />)}
+          {properties.map((p) => <PropertyCard key={p.id} p={p} />)}
         </div>
       </div>
     </main>

@@ -15,14 +15,27 @@ export default function BuyButton({ pricePerShare, propertyName }: BuyButtonProp
   const [shares, setShares] = useState(1000);
   const [status, setStatus] = useState<"idle" | "sending" | "success" | "error">("idle");
   const [txSig, setTxSig] = useState("");
+  const [demoMode, setDemoMode] = useState(false);
 
   const totalUsd = (shares * pricePerShare).toFixed(2);
+  const propertyTitle = propertyName.trim() || "Объект";
+
+  function randomBase58(length: number): string {
+    const chars = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+    return Array.from({ length }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
+  }
 
   async function handleBuy() {
     if (!connected || !publicKey) {
-      setVisible(true);
+      // No wallet mode for demo recordings: simulate success without Phantom.
+      setDemoMode(true);
+      setStatus("sending");
+      await new Promise((r) => setTimeout(r, 900));
+      setTxSig(randomBase58(88));
+      setStatus("success");
       return;
     }
+    setDemoMode(false);
     setStatus("sending");
     try {
       const connection = new Connection(clusterApiUrl("devnet"), "confirmed");
@@ -80,15 +93,23 @@ export default function BuyButton({ pricePerShare, propertyName }: BuyButtonProp
       {status === "success" ? (
         <div>
           <div style={{ background: "rgba(20,241,149,0.1)", border: "1px solid rgba(20,241,149,0.3)", borderRadius: 12, padding: 16, marginBottom: 12, textAlign: "center" }}>
-            <div style={{ color: "#14F195", fontWeight: 700, marginBottom: 4 }}>✅ Транзакция подтверждена!</div>
-            <a
-              href={`https://explorer.solana.com/tx/${txSig}?cluster=devnet`}
-              target="_blank"
-              rel="noreferrer"
-              style={{ color: "#9945FF", fontSize: 12, fontFamily: "monospace" }}
-            >
-              {txSig.slice(0, 12)}…{txSig.slice(-8)} →
-            </a>
+            <div style={{ color: "#14F195", fontWeight: 700, marginBottom: 4 }}>
+              ✅ {demoMode ? "Demo-покупка выполнена!" : "Транзакция подтверждена!"}
+            </div>
+            {demoMode ? (
+              <div style={{ color: "#a0a0b0", fontSize: 12 }}>
+                {propertyTitle}: {shares.toLocaleString()} долей · симуляция без кошелька
+              </div>
+            ) : (
+              <a
+                href={`https://explorer.solana.com/tx/${txSig}?cluster=devnet`}
+                target="_blank"
+                rel="noreferrer"
+                style={{ color: "#9945FF", fontSize: 12, fontFamily: "monospace" }}
+              >
+                {txSig.slice(0, 12)}…{txSig.slice(-8)} →
+              </a>
+            )}
           </div>
           <button onClick={() => setStatus("idle")} style={{ width: "100%", background: "rgba(255,255,255,0.06)", color: "#a0a0b0", fontWeight: 600, fontSize: 14, border: "1px solid rgba(255,255,255,0.1)", borderRadius: 12, padding: "12px 0", cursor: "pointer" }}>
             Купить ещё
@@ -100,7 +121,7 @@ export default function BuyButton({ pricePerShare, propertyName }: BuyButtonProp
           disabled={status === "sending"}
           style={{ width: "100%", background: status === "sending" ? "rgba(153,69,255,0.4)" : "linear-gradient(135deg, #9945FF, #14F195)", color: "#000", fontWeight: 700, fontSize: 16, border: "none", borderRadius: 12, padding: "14px 0", cursor: status === "sending" ? "wait" : "pointer", marginBottom: 12, opacity: status === "sending" ? 0.7 : 1 }}
         >
-          {!connected ? "🔗 Подключить Phantom" : status === "sending" ? "⏳ Отправка..." : `Купить ${shares.toLocaleString()} долей`}
+          {!connected ? "▶ Demo-покупка без Phantom" : status === "sending" ? "⏳ Отправка..." : `Купить ${shares.toLocaleString()} долей`}
         </button>
       )}
 
@@ -108,6 +129,17 @@ export default function BuyButton({ pricePerShare, propertyName }: BuyButtonProp
         <p style={{ fontSize: 12, color: "#ff6b6b", textAlign: "center", marginTop: 8 }}>
           Ошибка транзакции. Убедитесь что на кошельке есть SOL (Devnet).
         </p>
+      )}
+
+      {!connected && status === "idle" && (
+        <div style={{ display: "flex", justifyContent: "center" }}>
+          <button
+            onClick={() => setVisible(true)}
+            style={{ background: "transparent", border: "1px solid rgba(255,255,255,0.18)", borderRadius: 10, color: "#a0a0b0", fontSize: 12, padding: "8px 12px", cursor: "pointer" }}
+          >
+            Подключить Phantom (опционально)
+          </button>
+        </div>
       )}
 
       <p style={{ fontSize: 11, color: "#6b6b80", textAlign: "center", marginTop: 8 }}>

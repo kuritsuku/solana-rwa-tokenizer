@@ -17,6 +17,7 @@ import {
 const connection = new Connection(clusterApiUrl("devnet"), "confirmed");
 import { signWithEDS, probeNCALayer, NCALayerStatus, NCALayerResult } from "../../lib/ncalayer";
 import { buildInitializePropertyInstruction, getPropertyPDA } from "../../lib/solana";
+import { Property, saveCustomProperty } from "../../lib/mockData";
 
 type Step = "upload" | "sign" | "mint" | "done";
 
@@ -30,6 +31,8 @@ export default function TokenizePage() {
   const [txSig, setTxSig] = useState<string | null>(null);
   const [mintLoading, setMintLoading] = useState(false);
   const [mintDone, setMintDone] = useState(false);
+  const [demoMintMode, setDemoMintMode] = useState(false);
+  const [mintWarning, setMintWarning] = useState<string | null>(null);
 
   // Probe NCALayer availability on mount
   useEffect(() => {
@@ -48,6 +51,11 @@ export default function TokenizePage() {
 
   const stepOrder: Step[] = ["upload", "sign", "mint", "done"];
   const { publicKey, sendTransaction, signTransaction, connected } = useWallet();
+
+  function randomBase58(length: number): string {
+    const chars = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+    return Array.from({ length }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
+  }
 
   const ncaBadge = () => {
     if (ncaStatus === "connecting") return { color: "#a0a0b0", bg: "rgba(160,160,176,0.1)", border: "rgba(160,160,176,0.25)", label: "⏳ Проверка NCALayer..." };
@@ -80,11 +88,6 @@ export default function TokenizePage() {
   }
 
   async function handleMint() {
-    if (!connected || !publicKey) {
-      alert("Подключите Phantom Wallet, чтобы выпустить токены.");
-      return;
-    }
-
     if (!form.name || !form.location || !form.value || !form.shares) {
       alert("Заполните все обязательные поля объекта недвижимости.");
       return;
@@ -96,17 +99,50 @@ export default function TokenizePage() {
       return;
     }
 
-    if (!signTransaction) {
-      alert("Ваш кошелёк не поддерживает подпись транзакций напрямую.");
+    // Demo fallback for recordings without wallet extensions.
+    if (!connected || !publicKey || !signTransaction) {
+      setMintLoading(true);
+      const newPropertyId = `PROP-${Date.now()}`;
+      setPropertyId(newPropertyId);
+      await new Promise((r) => setTimeout(r, 1300));
+      setMintAddress(randomBase58(44));
+      setTxSig(randomBase58(88));
+      setDemoMintMode(true);
+      setMintWarning("Demo mint выполнен без on-chain инициализации property state.");
+      const valuationUsd = parseInt(form.value, 10);
+      const totalShares = parseInt(form.shares, 10);
+      const annualYield = parseFloat(form.yield || "7.5");
+      const createdProperty: Property = {
+        id: newPropertyId.toLowerCase(),
+        name: form.name,
+        location: form.location,
+        image: "https://images.unsplash.com/photo-1460317442991-0ec209397118?w=1200&q=80",
+        valuationUsd,
+        totalShares,
+        soldShares: 0,
+        pricePerShare: Number((valuationUsd / Math.max(totalShares, 1)).toFixed(2)),
+        annualYieldPercent: Number((Number.isFinite(annualYield) ? annualYield : 7.5).toFixed(1)),
+        edsHash: (edsResult?.hash ?? "").slice(0, 16) || "mock-signature",
+        edsVerified: true,
+        description: `${form.name}. Токенизированный объект, созданный в demo-потоке платформы.`,
+        type: "residential",
+        area: 100,
+      };
+      saveCustomProperty(createdProperty);
+      setMintDone(true);
+      setStep("done");
       setMintLoading(false);
       return;
     }
 
     setMintLoading(true);
+    setDemoMintMode(false);
+    setMintWarning(null);
 
     try {
       const newPropertyId = `PROP-${Date.now()}`;
       setPropertyId(newPropertyId);
+      let lastConfirmedSig: string | null = null;
 
       const mintKeypair = Keypair.generate();
       const hookProgramId = new PublicKey("DueqM2eEUpHR7SFm957Xd8kAmykXKUqjy1sLoXHVwv3p");
@@ -144,6 +180,7 @@ export default function TokenizePage() {
       const signedCreateMintTx = await signTransaction(createMintTx);
       const createMintSig = await connection.sendRawTransaction(signedCreateMintTx.serialize(), { skipPreflight: false, preflightCommitment: "confirmed" });
       await connection.confirmTransaction(createMintSig, "confirmed");
+      lastConfirmedSig = createMintSig;
 
       const issuerAta = await getAssociatedTokenAddress(
         mintKeypair.publicKey,
@@ -185,6 +222,7 @@ export default function TokenizePage() {
         const signedAtaTx = await signTransaction(ataTx);
         const ataSig = await connection.sendRawTransaction(signedAtaTx.serialize(), { skipPreflight: false, preflightCommitment: "confirmed" });
         await connection.confirmTransaction(ataSig, "confirmed");
+        lastConfirmedSig = ataSig;
       }
 
       const propertyStatePDA = getPropertyPDA(newPropertyId)[0];
@@ -200,15 +238,42 @@ export default function TokenizePage() {
         systemProgram: SystemProgram.programId,
       });
 
-      const initTx = new Transaction().add(initializePropertyIx);
-      initTx.recentBlockhash = (await connection.getLatestBlockhash("confirmed")).blockhash;
-      initTx.feePayer = publicKey;
-      const signedInitTx = await signTransaction(initTx);
-      const initSig = await connection.sendRawTransaction(signedInitTx.serialize(), { skipPreflight: false, preflightCommitment: "confirmed" });
-      await connection.confirmTransaction(initSig, "confirmed");
+      let initSig: string | null = null;
+      try {
+        const initTx = new Transaction().add(initializePropertyIx);
+        initTx.recentBlockhash = (await connection.getLatestBlockhash("confirmed")).blockhash;
+        initTx.feePayer = publicKey;
+        const signedInitTx = await signTransaction(initTx);
+        initSig = await connection.sendRawTransaction(signedInitTx.serialize(), { skipPreflight: false, preflightCommitment: "confirmed" });
+        await connection.confirmTransaction(initSig, "confirmed");
+        lastConfirmedSig = initSig;
+      } catch (initError) {
+        console.warn("initialize_property failed, keeping demo flow alive", initError);
+        setMintWarning("Mint создан, но initialize_property не выполнился на текущем devnet deploy.");
+      }
 
       setMintAddress(mintKeypair.publicKey.toBase58());
-      setTxSig(initSig);
+      setTxSig(lastConfirmedSig);
+      const valuationUsd = parseInt(form.value, 10);
+      const totalShares = parseInt(form.shares, 10);
+      const annualYield = parseFloat(form.yield || "7.5");
+      const createdProperty: Property = {
+        id: newPropertyId.toLowerCase(),
+        name: form.name,
+        location: form.location,
+        image: "https://images.unsplash.com/photo-1460317442991-0ec209397118?w=1200&q=80",
+        valuationUsd,
+        totalShares,
+        soldShares: 0,
+        pricePerShare: Number((valuationUsd / Math.max(totalShares, 1)).toFixed(2)),
+        annualYieldPercent: Number((Number.isFinite(annualYield) ? annualYield : 7.5).toFixed(1)),
+        edsHash: (edsResult?.hash ?? "").slice(0, 16) || "eds-hash",
+        edsVerified: true,
+        description: `${form.name}. Токенизированный объект, добавленный после выпуска Token-2022 mint.`,
+        type: "residential",
+        area: 100,
+      };
+      saveCustomProperty(createdProperty);
       setMintDone(true);
       setStep("done");
     } catch (error) {
@@ -370,6 +435,11 @@ export default function TokenizePage() {
         {step === "mint" && (
           <div>
             <h2 style={{ fontSize: 18, fontWeight: 700, color: "#e8e8f0", marginBottom: 8 }}>Выпуск Token-2022 на Solana</h2>
+            {!connected && (
+              <div style={{ background: "rgba(153,69,255,0.08)", border: "1px solid rgba(153,69,255,0.25)", borderRadius: 10, padding: "10px 16px", marginBottom: 16, fontSize: 12, color: "#a0a0b0" }}>
+                Phantom не подключен — будет запущен demo mint режим без кошелька.
+              </div>
+            )}
 
             <div style={{ background: "rgba(20,241,149,0.06)", border: "1px solid rgba(20,241,149,0.25)", borderRadius: 12, padding: 16, marginBottom: 24 }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
@@ -413,7 +483,7 @@ export default function TokenizePage() {
               disabled={mintLoading}
               style={{ width: "100%", background: mintLoading ? "rgba(153,69,255,0.4)" : "linear-gradient(135deg, #9945FF, #14F195)", color: "#000", fontWeight: 700, fontSize: 15, border: "none", borderRadius: 12, padding: "14px 0", cursor: mintLoading ? "wait" : "pointer", opacity: mintLoading ? 0.7 : 1 }}
             >
-              {mintLoading ? "⏳ Создание Token-2022 на Solana..." : "🪙 Выпустить Token-2022 + записать ЭЦП hash"}
+              {mintLoading ? "⏳ Создание Token-2022 на Solana..." : !connected ? "🪙 Demo mint без кошелька" : "🪙 Выпустить Token-2022 + записать ЭЦП hash"}
             </button>
           </div>
         )}
@@ -424,6 +494,11 @@ export default function TokenizePage() {
             <div style={{ fontSize: 48, marginBottom: 16 }}>🎉</div>
             <h2 style={{ fontSize: 22, fontWeight: 800, color: "#e8e8f0", marginBottom: 8 }}>Токены выпущены!</h2>
             <p style={{ color: "#6b6b80", marginBottom: 32 }}>Ваш объект токенизирован как Token-2022 и доступен инвесторам</p>
+            {mintWarning && (
+              <div style={{ background: "rgba(245,166,35,0.08)", border: "1px solid rgba(245,166,35,0.25)", borderRadius: 10, padding: "10px 14px", marginBottom: 18, color: "#f5a623", fontSize: 12 }}>
+                ⚠ {mintWarning}
+              </div>
+            )}
             <div style={{ background: "rgba(153,69,255,0.08)", border: "1px solid rgba(153,69,255,0.25)", borderRadius: 12, padding: 20, marginBottom: 24, textAlign: "left" }}>
               {[
                 { label: "Mint Address", value: mintAddress ? `${mintAddress.slice(0, 20)}...` : "—" },
@@ -431,6 +506,7 @@ export default function TokenizePage() {
                 { label: "Token Standard", value: "Token-2022 + TransferHook" },
                 { label: "Токенов выпущено", value: parseInt(form.shares || "1000000").toLocaleString() },
                 { label: "Подпись ЭЦП", value: edsResult?.mock ? "Mock (демо)" : "НУЦ РК ✓" },
+                { label: "Режим выпуска", value: demoMintMode ? "Demo без кошелька" : "Через Phantom" },
                 { label: "Сеть", value: "Solana Devnet" },
               ].map((r) => (
                 <div key={r.label} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.05)", fontSize: 13 }}>

@@ -30,8 +30,10 @@ export async function tokenizeProperty(
     id: string; name: string; location: string;
     valuationUsd: number; totalShares: number; decimals: number; edsHash?: string;
   },
-  issuer: Keypair
+  issuer: Keypair,
+  options: { enableTransferHook?: boolean } = {}
 ): Promise<TokenizationResult> {
+  const enableTransferHook = options.enableTransferHook ?? true;
   let mintAddress: PublicKey;
   let issuerAtaAddress: PublicKey;
   let mintToSignature: string;
@@ -43,7 +45,7 @@ export async function tokenizeProperty(
   } else {
     // ── Token-2022 mint with TransferHook extension ──────────────────────────
     const hookProgramId = new PublicKey(TRANSFER_HOOK_PROGRAM_ID);
-    const extensions = [ExtensionType.TransferHook];
+    const extensions = enableTransferHook ? [ExtensionType.TransferHook] : [];
     const mintLen = getMintLen(extensions);
     const lamports = await connection.getMinimumBalanceForRentExemption(mintLen);
 
@@ -59,14 +61,7 @@ export async function tokenizeProperty(
         lamports,
         programId: TOKEN_2022_PROGRAM_ID,
       }),
-      // 2. Initialize TransferHook extension BEFORE mint
-      createInitializeTransferHookInstruction(
-        mintAddress,
-        issuer.publicKey,   // authority that can update the hook
-        hookProgramId,
-        TOKEN_2022_PROGRAM_ID,
-      ),
-      // 3. Initialize the mint itself
+      // 2. Initialize the mint itself
       createInitializeMintInstruction(
         mintAddress,
         config.decimals,
@@ -75,6 +70,20 @@ export async function tokenizeProperty(
         TOKEN_2022_PROGRAM_ID,
       ),
     );
+
+    if (enableTransferHook) {
+      // TransferHook extension must be initialized before initializeMint
+      createMintTx.instructions.splice(
+        1,
+        0,
+        createInitializeTransferHookInstruction(
+          mintAddress,
+          issuer.publicKey,
+          hookProgramId,
+          TOKEN_2022_PROGRAM_ID,
+        ),
+      );
+    }
 
     await sendAndConfirmTransaction(connection, createMintTx, [issuer, mintKeypair], { commitment: COMMITMENT });
 

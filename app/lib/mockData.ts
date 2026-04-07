@@ -66,6 +66,48 @@ export const PROPERTIES: Property[] = [
   },
 ];
 
+const CUSTOM_PROPERTIES_STORAGE_KEY = "rwa_custom_properties_v1";
+
+function isBrowser(): boolean {
+  return typeof window !== "undefined";
+}
+
+function parseCustomProperties(raw: string | null): Property[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw) as Property[];
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((p) =>
+      typeof p?.id === "string" &&
+      typeof p?.name === "string" &&
+      typeof p?.location === "string" &&
+      typeof p?.image === "string"
+    );
+  } catch {
+    return [];
+  }
+}
+
+export function getCustomProperties(): Property[] {
+  if (!isBrowser()) return [];
+  return parseCustomProperties(window.localStorage.getItem(CUSTOM_PROPERTIES_STORAGE_KEY));
+}
+
+export function getAllProperties(): Property[] {
+  return [...getCustomProperties(), ...PROPERTIES];
+}
+
+export function getPropertyById(id: string): Property | undefined {
+  return getAllProperties().find((p) => p.id === id);
+}
+
+export function saveCustomProperty(property: Property): void {
+  if (!isBrowser()) return;
+  const current = getCustomProperties().filter((p) => p.id !== property.id);
+  current.unshift(property);
+  window.localStorage.setItem(CUSTOM_PROPERTIES_STORAGE_KEY, JSON.stringify(current));
+}
+
 export function formatUsd(n: number): string {
   if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `$${(n / 1_000).toFixed(0)}K`;

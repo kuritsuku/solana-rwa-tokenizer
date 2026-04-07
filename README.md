@@ -89,6 +89,27 @@ npm install
 npm run demo
 ```
 
+Для реального прогона в Devnet с фиксированным кошельком:
+
+```bash
+npm run demo -- --devnet --issuer-keypair C:\path\to\id.json
+```
+
+Если хотите включить TransferHook (KYC) в devnet-прогоне:
+
+```bash
+npm run demo -- --devnet --with-transfer-hook --issuer-keypair C:\path\to\id.json
+```
+
+Примечание: для `--with-transfer-hook` программа `transfer-hook` на Devnet должна поддерживать `execute` интерфейс Token-2022.
+
+или через переменную окружения:
+
+```bash
+$env:ISSUER_KEYPAIR_PATH="C:\path\to\id.json"
+npm run demo -- --devnet
+```
+
 ### Запустить веб-приложение
 
 ```bash

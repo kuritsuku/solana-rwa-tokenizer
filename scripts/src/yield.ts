@@ -38,6 +38,16 @@ export async function distributeYield(
       false, COMMITMENT, undefined, TOKEN_2022_PROGRAM_ID
     );
     payerUsdcAta = ata.address;
+
+    const requiredAtomicUnits = Math.floor(yieldPoolUsdc * 10 ** USDC_DECIMALS);
+    const balanceInfo = await connection.getTokenAccountBalance(payerUsdcAta, COMMITMENT);
+    const currentAtomicUnits = Number(balanceInfo.value.amount);
+    if (currentAtomicUnits < requiredAtomicUnits) {
+      const currentUsdc = currentAtomicUnits / 10 ** USDC_DECIMALS;
+      throw new Error(
+        `Insufficient devnet USDC for yield pool: need ${yieldPoolUsdc.toFixed(2)} USDC, have ${currentUsdc.toFixed(6)} USDC`,
+      );
+    }
   }
 
   for (const investor of active) {

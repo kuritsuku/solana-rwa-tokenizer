@@ -18,6 +18,7 @@ export interface InvestorRecord {
   wallet: Keypair;
   tokenAccount: PublicKey;
   mintAddress: PublicKey;
+  mintDecimals: number;
   sharesOwned: number;
 }
 

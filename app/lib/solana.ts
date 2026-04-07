@@ -28,6 +28,17 @@ function encodeString(value: string): Buffer {
   return Buffer.concat([len, bytes]);
 }
 
+function encodeU64LE(value: bigint): Buffer {
+  const out = Buffer.alloc(8);
+  let v = value;
+  const BYTE_BASE = BigInt(256);
+  for (let i = 0; i < 8; i++) {
+    out[i] = Number(v % BYTE_BASE);
+    v /= BYTE_BASE;
+  }
+  return out;
+}
+
 export function buildInitializePropertyInstruction(params: {
   propertyId: string;
   name: string;
@@ -45,10 +56,8 @@ export function buildInitializePropertyInstruction(params: {
 
   const propertyIdBytes = encodeString(params.propertyId);
   const nameBytes = encodeString(params.name);
-  const valuationBuf = Buffer.alloc(8);
-  valuationBuf.writeBigUInt64LE(params.valuationUsd, 0);
-  const totalSharesBuf = Buffer.alloc(8);
-  totalSharesBuf.writeBigUInt64LE(params.totalShares, 0);
+  const valuationBuf = encodeU64LE(params.valuationUsd);
+  const totalSharesBuf = encodeU64LE(params.totalShares);
   const edsHashBytes = encodeString(params.edsHash);
 
   const data = Buffer.concat([
@@ -132,8 +141,7 @@ export function buildBuySharesInstruction(params: {
   const lenBuf = Buffer.alloc(4);
   lenBuf.writeUInt32LE(propertyIdBytes.length, 0);
 
-  const amountBuf = Buffer.alloc(8);
-  amountBuf.writeBigUInt64LE(params.shareAmount, 0);
+  const amountBuf = encodeU64LE(params.shareAmount);
 
   const data = Buffer.concat([discriminator, lenBuf, propertyIdBytes, amountBuf]);
 

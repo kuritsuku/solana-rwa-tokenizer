@@ -6,3 +6,4 @@ dist/
 *.log
 .DS_Store
 *.docx
+scripts/id.json

@@ -1,9 +1,9 @@
-import { Keypair, PublicKey } from "@solana/web3.js";
+import { Keypair, PublicKey, Transaction, sendAndConfirmTransaction } from "@solana/web3.js";
 import {
   TOKEN_2022_PROGRAM_ID,
   ASSOCIATED_TOKEN_PROGRAM_ID,
   getOrCreateAssociatedTokenAccount,
-  transferChecked,
+  createTransferCheckedWithTransferHookInstruction,
 } from "@solana/spl-token";
 import { connection, COMMITMENT } from "./config";
 import { MOCK_MODE } from "./wallet";
@@ -11,7 +11,7 @@ import { simGetOrCreateAta, simTransferTokens } from "./simulator";
 import { InvestorRecord, PropertyRecord, PurchaseResult } from "./types";
 
 export async function createInvestorRecord(
-  name: string, wallet: Keypair, mintAddress: PublicKey
+  name: string, wallet: Keypair, mintAddress: PublicKey, mintDecimals = 0
 ): Promise<InvestorRecord> {
   let ataAddress: PublicKey;
   if (MOCK_MODE) {
@@ -24,7 +24,7 @@ export async function createInvestorRecord(
     );
     ataAddress = ata.address;
   }
-  return { name, wallet, tokenAccount: ataAddress, mintAddress, sharesOwned: 0 };
+  return { name, wallet, tokenAccount: ataAddress, mintAddress, mintDecimals, sharesOwned: 0 };
 }
 
 export async function purchaseShares(
@@ -39,15 +39,21 @@ export async function purchaseShares(
       property.mintAddress, issuer.publicKey, investor.wallet.publicKey, BigInt(shareAmount)
     );
   } else {
-    // Use transferChecked with Token-2022; decimals = 0 for whole shares
-    signature = await transferChecked(
-      connection, issuer,
-      issuerTokenAccount, property.mintAddress,
-      investor.tokenAccount, issuer,
-      BigInt(shareAmount), property.decimals,
-      [], { commitment: COMMITMENT },
-      TOKEN_2022_PROGRAM_ID
+    const ix = await createTransferCheckedWithTransferHookInstruction(
+      connection,
+      issuerTokenAccount,
+      property.mintAddress,
+      investor.tokenAccount,
+      issuer.publicKey,
+      BigInt(shareAmount),
+      property.decimals,
+      [],
+      COMMITMENT,
+      TOKEN_2022_PROGRAM_ID,
     );
+
+    const tx = new Transaction().add(ix);
+    signature = await sendAndConfirmTransaction(connection, tx, [issuer], { commitment: COMMITMENT });
   }
   investor.sharesOwned += shareAmount;
   return {

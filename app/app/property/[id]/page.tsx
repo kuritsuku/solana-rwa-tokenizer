@@ -1,11 +1,29 @@
-import { PROPERTIES, formatUsd } from "../../../lib/mockData";
-import { notFound } from "next/navigation";
+"use client";
+import { useMemo } from "react";
+import { useParams } from "next/navigation";
 import BuyButton from "../../../components/BuyButton";
+import { formatUsd, getPropertyById } from "../../../lib/mockData";
 
-export default async function PropertyPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  const p = PROPERTIES.find((x) => x.id === id);
-  if (!p) notFound();
+export default function PropertyPage() {
+  const params = useParams<{ id: string }>();
+  const id = params?.id;
+  const p = useMemo(() => (id ? getPropertyById(id) : undefined), [id]);
+
+  if (!p) {
+    return (
+      <main style={{ maxWidth: 900, margin: "0 auto", padding: "40px 24px" }}>
+        <a href="/" style={{ color: "#6b6b80", fontSize: 14, textDecoration: "none" }}>
+          ← Маркетплейс
+        </a>
+        <div style={{ marginTop: 32, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 16, padding: 24 }}>
+          <h1 style={{ color: "#e8e8f0", margin: 0, fontSize: 24 }}>Объект не найден</h1>
+          <p style={{ color: "#a0a0b0", marginTop: 12 }}>
+            Возможно, объект был создан в другой сессии браузера.
+          </p>
+        </div>
+      </main>
+    );
+  }
 
   const soldPct = Math.round((p.soldShares / p.totalShares) * 100);
   const availableShares = p.totalShares - p.soldShares;
@@ -17,7 +35,6 @@ export default async function PropertyPage({ params }: { params: Promise<{ id: s
       </a>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 400px", gap: 32 }}>
-        {/* Left */}
         <div>
           <div style={{ borderRadius: 16, overflow: "hidden", marginBottom: 24, position: "relative" }}>
             <img src={p.image} alt={p.name} style={{ width: "100%", height: 360, objectFit: "cover" }} />
@@ -39,7 +56,6 @@ export default async function PropertyPage({ params }: { params: Promise<{ id: s
 
           <p style={{ color: "#a0a0b0", lineHeight: 1.7, marginBottom: 32, fontSize: 15 }}>{p.description}</p>
 
-          {/* Stats grid */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, marginBottom: 32 }}>
             {[
               { label: "Рыночная оценка", value: formatUsd(p.valuationUsd), color: "#e8e8f0" },
@@ -55,27 +71,8 @@ export default async function PropertyPage({ params }: { params: Promise<{ id: s
               </div>
             ))}
           </div>
-
-          {/* Blockchain info */}
-          <div style={{ background: "rgba(153,69,255,0.06)", border: "1px solid rgba(153,69,255,0.2)", borderRadius: 12, padding: 20 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: "#9945FF", marginBottom: 12 }}>⛓ On-chain информация (Solana Devnet)</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {[
-                { label: "Mint Address", value: "EugExxx...7yFb (SPL Token)" },
-                { label: "ЭЦП Hash", value: p.edsHash + " (SHA-256)" },
-                { label: "Token Standard", value: "SPL Token → Token-2022" },
-                { label: "Decimals", value: "0 (целые доли)" },
-              ].map((r) => (
-                <div key={r.label} style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
-                  <span style={{ color: "#6b6b80" }}>{r.label}</span>
-                  <span style={{ color: "#a0a0b0", fontFamily: "monospace" }}>{r.value}</span>
-                </div>
-              ))}
-            </div>
-          </div>
         </div>
 
-        {/* Right — Buy panel */}
         <div style={{ position: "sticky", top: 88 }}>
           <div style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.10)", borderRadius: 16, padding: 28 }}>
             <h2 style={{ fontSize: 18, fontWeight: 700, color: "#e8e8f0", marginBottom: 20 }}>Купить доли</h2>
@@ -89,31 +86,6 @@ export default async function PropertyPage({ params }: { params: Promise<{ id: s
                 <div style={{ height: "100%", width: `${soldPct}%`, background: "linear-gradient(90deg, #9945FF, #14F195)", borderRadius: 4 }} />
               </div>
               <div style={{ fontSize: 12, color: "#6b6b80", marginTop: 6 }}>{availableShares.toLocaleString()} долей доступно</div>
-            </div>
-
-            <div style={{ marginBottom: 16 }}>
-              <label style={{ fontSize: 13, color: "#a0a0b0", marginBottom: 8, display: "block" }}>Количество долей</label>
-              <input
-                type="number"
-                defaultValue={1000}
-                min={1}
-                style={{ width: "100%", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 10, padding: "12px 16px", color: "#e8e8f0", fontSize: 16, boxSizing: "border-box" }}
-              />
-            </div>
-
-            <div style={{ background: "rgba(255,255,255,0.03)", borderRadius: 10, padding: 16, marginBottom: 20 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 13 }}>
-                <span style={{ color: "#6b6b80" }}>Стоимость</span>
-                <span style={{ color: "#e8e8f0" }}>${(1000 * p.pricePerShare).toFixed(2)}</span>
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 13 }}>
-                <span style={{ color: "#6b6b80" }}>Доля в объекте</span>
-                <span style={{ color: "#9945FF" }}>0.10%</span>
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
-                <span style={{ color: "#6b6b80" }}>Годовой доход</span>
-                <span style={{ color: "#14F195" }}>~${((1000 * p.pricePerShare * p.annualYieldPercent) / 100).toFixed(2)}</span>
-              </div>
             </div>
 
             <BuyButton pricePerShare={p.pricePerShare} propertyName={p.name} />
