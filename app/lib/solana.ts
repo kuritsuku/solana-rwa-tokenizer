@@ -3,7 +3,7 @@ import { createHash } from "crypto";
 
 // ─── Program IDs ───────────────────────────────────────────────────────────────
 // Replace after deploying: anchor deploy --provider.cluster devnet
-export const PROGRAM_ID = "4d7BYXSKiHwCN48E9oTBdXVjyw9Q27vMePkz3TgQH53N";
+export const PROGRAM_ID = "C9FUrbEatQASUhbvvAA1XRHVeMFxTgX3QvVFNt5cKYnn";
 export const TRANSFER_HOOK_PROGRAM_ID = "DueqM2eEUpHR7SFm957Xd8kAmykXKUqjy1sLoXHVwv3p";
 
 // Devnet USDC mint

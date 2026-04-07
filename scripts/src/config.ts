@@ -31,7 +31,7 @@ export const USDC_DECIMALS = 6;
 export const AIRDROP_SOL = 2;
 
 // Anchor program ID (deployed on Devnet via Solana Playground)
-export const RWA_PROGRAM_ID = "4d7BYXSKiHwCN48E9oTBdXVjyw9Q27vMePkz3TgQH53N";
+export const RWA_PROGRAM_ID = "C9FUrbEatQASUhbvvAA1XRHVeMFxTgX3QvVFNt5cKYnn";
 
 // Token-2022 TransferHook program ID (deployed on Devnet)
 export const TRANSFER_HOOK_PROGRAM_ID = "DueqM2eEUpHR7SFm957Xd8kAmykXKUqjy1sLoXHVwv3p";

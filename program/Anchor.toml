@@ -6,7 +6,7 @@ resolution = true
 skip-lint = false
 
 [programs.devnet]
-rwa-tokenizer = "4d7BYXSKiHwCN48E9oTBdXVjyw9Q27vMePkz3TgQH53N"
+rwa-tokenizer = "C9FUrbEatQASUhbvvAA1XRHVeMFxTgX3QvVFNt5cKYnn"
 transfer-hook = "DueqM2eEUpHR7SFm957Xd8kAmykXKUqjy1sLoXHVwv3p"
 
 [registry]
