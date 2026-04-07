@@ -1,6 +1,22 @@
 "use client";
 import { useState, useEffect } from "react";
+import { useWallet } from "@solana/wallet-adapter-react";
+import { Connection, clusterApiUrl, Keypair, PublicKey, SystemProgram, Transaction } from "@solana/web3.js";
+import {
+  TOKEN_2022_PROGRAM_ID,
+  ExtensionType,
+  createInitializeMintInstruction,
+  createInitializeTransferHookInstruction,
+  createMintToInstruction,
+  getAssociatedTokenAddress,
+  createAssociatedTokenAccountInstruction,
+  getMintLen,
+  ASSOCIATED_TOKEN_PROGRAM_ID,
+} from "@solana/spl-token";
+
+const connection = new Connection(clusterApiUrl("devnet"), "confirmed");
 import { signWithEDS, probeNCALayer, NCALayerStatus, NCALayerResult } from "../../lib/ncalayer";
+import { buildInitializePropertyInstruction, getPropertyPDA } from "../../lib/solana";
 
 type Step = "upload" | "sign" | "mint" | "done";
 
@@ -9,7 +25,9 @@ export default function TokenizePage() {
   const [form, setForm] = useState({ name: "", location: "", value: "", shares: "1000000", yield: "" });
   const [ncaStatus, setNcaStatus] = useState<NCALayerStatus | "idle">("idle");
   const [edsResult, setEdsResult] = useState<NCALayerResult | null>(null);
-  const [mintAddress] = useState("EugEMt8ptWJHg496cywjVAc86GL9FPVvysogh2LsjUnK");
+  const [mintAddress, setMintAddress] = useState<string | null>(null);
+  const [propertyId, setPropertyId] = useState<string | null>(null);
+  const [txSig, setTxSig] = useState<string | null>(null);
   const [mintLoading, setMintLoading] = useState(false);
   const [mintDone, setMintDone] = useState(false);
 
@@ -29,6 +47,7 @@ export default function TokenizePage() {
   ];
 
   const stepOrder: Step[] = ["upload", "sign", "mint", "done"];
+  const { publicKey, sendTransaction, signTransaction, connected } = useWallet();
 
   const ncaBadge = () => {
     if (ncaStatus === "connecting") return { color: "#a0a0b0", bg: "rgba(160,160,176,0.1)", border: "rgba(160,160,176,0.25)", label: "⏳ Проверка NCALayer..." };
@@ -61,11 +80,143 @@ export default function TokenizePage() {
   }
 
   async function handleMint() {
+    if (!connected || !publicKey) {
+      alert("Подключите Phantom Wallet, чтобы выпустить токены.");
+      return;
+    }
+
+    if (!form.name || !form.location || !form.value || !form.shares) {
+      alert("Заполните все обязательные поля объекта недвижимости.");
+      return;
+    }
+
+    if (!edsResult) {
+      alert("Сначала выполните ЭЦП-подпись документа.");
+      setMintLoading(false);
+      return;
+    }
+
+    if (!signTransaction) {
+      alert("Ваш кошелёк не поддерживает подпись транзакций напрямую.");
+      setMintLoading(false);
+      return;
+    }
+
     setMintLoading(true);
-    await new Promise((r) => setTimeout(r, 2000));
-    setMintLoading(false);
-    setMintDone(true);
-    setStep("done");
+
+    try {
+      const newPropertyId = `PROP-${Date.now()}`;
+      setPropertyId(newPropertyId);
+
+      const mintKeypair = Keypair.generate();
+      const hookProgramId = new PublicKey("DueqM2eEUpHR7SFm957Xd8kAmykXKUqjy1sLoXHVwv3p");
+      const decimals = 0;
+      const mintLen = getMintLen([ExtensionType.TransferHook]);
+      const mintAccountLamports = await connection.getMinimumBalanceForRentExemption(mintLen);
+
+      const createMintTx = new Transaction().add(
+        SystemProgram.createAccount({
+          fromPubkey: publicKey,
+          newAccountPubkey: mintKeypair.publicKey,
+          space: mintLen,
+          lamports: mintAccountLamports,
+          programId: new PublicKey(TOKEN_2022_PROGRAM_ID),
+        }),
+        createInitializeTransferHookInstruction(
+          mintKeypair.publicKey,
+          publicKey,
+          hookProgramId,
+          new PublicKey(TOKEN_2022_PROGRAM_ID),
+        ),
+        createInitializeMintInstruction(
+          mintKeypair.publicKey,
+          decimals,
+          publicKey,
+          null,
+          new PublicKey(TOKEN_2022_PROGRAM_ID),
+        ),
+      );
+
+      createMintTx.recentBlockhash = (await connection.getLatestBlockhash("confirmed")).blockhash;
+      createMintTx.feePayer = publicKey;
+      createMintTx.partialSign(mintKeypair);
+
+      const signedCreateMintTx = await signTransaction(createMintTx);
+      const createMintSig = await connection.sendRawTransaction(signedCreateMintTx.serialize(), { skipPreflight: false, preflightCommitment: "confirmed" });
+      await connection.confirmTransaction(createMintSig, "confirmed");
+
+      const issuerAta = await getAssociatedTokenAddress(
+        mintKeypair.publicKey,
+        publicKey,
+        false,
+        new PublicKey(TOKEN_2022_PROGRAM_ID),
+        ASSOCIATED_TOKEN_PROGRAM_ID,
+      );
+
+      const accountInfo = await connection.getAccountInfo(issuerAta);
+      const ataTx = new Transaction();
+      if (!accountInfo) {
+        ataTx.add(
+          createAssociatedTokenAccountInstruction(
+            publicKey,
+            issuerAta,
+            publicKey,
+            mintKeypair.publicKey,
+            new PublicKey(TOKEN_2022_PROGRAM_ID),
+            ASSOCIATED_TOKEN_PROGRAM_ID,
+          )
+        );
+      }
+
+      ataTx.add(
+        createMintToInstruction(
+          mintKeypair.publicKey,
+          issuerAta,
+          publicKey,
+          BigInt(parseInt(form.shares, 10)),
+          [],
+          new PublicKey(TOKEN_2022_PROGRAM_ID),
+        ),
+      );
+
+      if (ataTx.instructions.length > 0) {
+        ataTx.recentBlockhash = (await connection.getLatestBlockhash("confirmed")).blockhash;
+        ataTx.feePayer = publicKey;
+        const signedAtaTx = await signTransaction(ataTx);
+        const ataSig = await connection.sendRawTransaction(signedAtaTx.serialize(), { skipPreflight: false, preflightCommitment: "confirmed" });
+        await connection.confirmTransaction(ataSig, "confirmed");
+      }
+
+      const propertyStatePDA = getPropertyPDA(newPropertyId)[0];
+      const initializePropertyIx = buildInitializePropertyInstruction({
+        propertyId: newPropertyId,
+        name: form.name,
+        valuationUsd: BigInt(parseInt(form.value, 10)),
+        totalShares: BigInt(parseInt(form.shares, 10)),
+        edsHash: edsResult?.hash ?? "",
+        propertyStatePDA,
+        mint: mintKeypair.publicKey,
+        owner: publicKey,
+        systemProgram: SystemProgram.programId,
+      });
+
+      const initTx = new Transaction().add(initializePropertyIx);
+      initTx.recentBlockhash = (await connection.getLatestBlockhash("confirmed")).blockhash;
+      initTx.feePayer = publicKey;
+      const signedInitTx = await signTransaction(initTx);
+      const initSig = await connection.sendRawTransaction(signedInitTx.serialize(), { skipPreflight: false, preflightCommitment: "confirmed" });
+      await connection.confirmTransaction(initSig, "confirmed");
+
+      setMintAddress(mintKeypair.publicKey.toBase58());
+      setTxSig(initSig);
+      setMintDone(true);
+      setStep("done");
+    } catch (error) {
+      console.error(error);
+      alert(`Ошибка при создании токена: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      setMintLoading(false);
+    }
   }
 
   const badge = ncaBadge();
@@ -275,8 +426,8 @@ export default function TokenizePage() {
             <p style={{ color: "#6b6b80", marginBottom: 32 }}>Ваш объект токенизирован как Token-2022 и доступен инвесторам</p>
             <div style={{ background: "rgba(153,69,255,0.08)", border: "1px solid rgba(153,69,255,0.25)", borderRadius: 12, padding: 20, marginBottom: 24, textAlign: "left" }}>
               {[
-                { label: "Mint Address", value: mintAddress.slice(0, 20) + "..." },
-                { label: "ЭЦП Hash (on-chain)", value: edsHash.slice(0, 20) + "..." },
+                { label: "Mint Address", value: mintAddress ? `${mintAddress.slice(0, 20)}...` : "—" },
+                { label: "ЭЦП Hash (on-chain)", value: edsHash ? `${edsHash.slice(0, 20)}...` : "—" },
                 { label: "Token Standard", value: "Token-2022 + TransferHook" },
                 { label: "Токенов выпущено", value: parseInt(form.shares || "1000000").toLocaleString() },
                 { label: "Подпись ЭЦП", value: edsResult?.mock ? "Mock (демо)" : "НУЦ РК ✓" },

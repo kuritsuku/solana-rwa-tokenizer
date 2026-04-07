@@ -21,6 +21,57 @@ export function getPropertyPDA(propertyId: string): [PublicKey, number] {
   );
 }
 
+function encodeString(value: string): Buffer {
+  const bytes = Buffer.from(value, "utf8");
+  const len = Buffer.alloc(4);
+  len.writeUInt32LE(bytes.length, 0);
+  return Buffer.concat([len, bytes]);
+}
+
+export function buildInitializePropertyInstruction(params: {
+  propertyId: string;
+  name: string;
+  valuationUsd: bigint;
+  totalShares: bigint;
+  edsHash: string;
+  propertyStatePDA: PublicKey;
+  mint: PublicKey;
+  owner: PublicKey;
+  systemProgram: PublicKey;
+}): TransactionInstruction {
+  const discriminator = Buffer.from(
+    createHash("sha256").update("global:initialize_property").digest()
+  ).subarray(0, 8);
+
+  const propertyIdBytes = encodeString(params.propertyId);
+  const nameBytes = encodeString(params.name);
+  const valuationBuf = Buffer.alloc(8);
+  valuationBuf.writeBigUInt64LE(params.valuationUsd, 0);
+  const totalSharesBuf = Buffer.alloc(8);
+  totalSharesBuf.writeBigUInt64LE(params.totalShares, 0);
+  const edsHashBytes = encodeString(params.edsHash);
+
+  const data = Buffer.concat([
+    discriminator,
+    propertyIdBytes,
+    nameBytes,
+    valuationBuf,
+    totalSharesBuf,
+    edsHashBytes,
+  ]);
+
+  return new TransactionInstruction({
+    programId: new PublicKey(PROGRAM_ID),
+    keys: [
+      { pubkey: params.propertyStatePDA, isSigner: false, isWritable: true },
+      { pubkey: params.mint, isSigner: false, isWritable: false },
+      { pubkey: params.owner, isSigner: true, isWritable: false },
+      { pubkey: params.systemProgram, isSigner: false, isWritable: false },
+    ],
+    data,
+  });
+}
+
 /** InvestorPosition PDA — seeded ["investor", propertyId, investorPubkey] */
 export function getInvestorPositionPDA(
   propertyId: string,
