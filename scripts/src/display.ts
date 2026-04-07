@@ -111,15 +111,15 @@ export function printOwnershipTable(
 }
 
 export function printYieldReport(dist: YieldDistribution): void {
-  console.log(chalk.bold(`  Distributing ${chalk.cyan(dist.totalYieldSol + " SOL")} yield pool (simulated annual rental income)`));
+  console.log(chalk.bold(`  Distributing ${chalk.cyan("$" + dist.totalYieldUsdc.toFixed(2) + " USDC")} yield pool (simulated annual rental income)`));
   console.log();
-  console.log("  " + chalk.bold("Investor".padEnd(12)) + chalk.bold("Shares".padEnd(14)) + chalk.bold("Ownership %".padEnd(14)) + chalk.bold("Yield (SOL)".padEnd(14)) + chalk.bold("Tx"));
-  console.log("  " + chalk.dim(line(70)));
+  console.log("  " + chalk.bold("Investor".padEnd(12)) + chalk.bold("Shares".padEnd(14)) + chalk.bold("Ownership %".padEnd(14)) + chalk.bold("Yield (USDC)".padEnd(15)) + chalk.bold("Tx"));
+  console.log("  " + chalk.dim(line(72)));
   for (const d of dist.distributions) {
-    console.log("  " + chalk.white(d.investor.name.padEnd(12)) + chalk.cyan(d.investor.sharesOwned.toLocaleString().padEnd(14)) + chalk.yellow((d.ownershipPercent.toFixed(2) + "%").padEnd(14)) + chalk.green((d.yieldSol.toFixed(6) + " SOL").padEnd(14)) + chalk.dim(shortSig(d.signature)));
+    console.log("  " + chalk.white(d.investor.name.padEnd(12)) + chalk.cyan(d.investor.sharesOwned.toLocaleString().padEnd(14)) + chalk.yellow((d.ownershipPercent.toFixed(2) + "%").padEnd(14)) + chalk.green(("$" + d.yieldUsdc.toFixed(4) + " USDC").padEnd(15)) + chalk.dim(shortSig(d.signature)));
   }
-  console.log("  " + chalk.dim(line(70)));
-  console.log("  " + chalk.bold("TOTAL".padEnd(40)) + chalk.bold.green(dist.distributions.reduce((s, d) => s + d.yieldSol, 0).toFixed(6) + " SOL"));
+  console.log("  " + chalk.dim(line(72)));
+  console.log("  " + chalk.bold("TOTAL".padEnd(40)) + chalk.bold.green("$" + dist.distributions.reduce((s, d) => s + d.yieldUsdc, 0).toFixed(4) + " USDC"));
   console.log();
 }
 

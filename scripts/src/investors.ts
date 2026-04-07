@@ -1,5 +1,10 @@
 import { Keypair, PublicKey } from "@solana/web3.js";
-import { getOrCreateAssociatedTokenAccount, transfer } from "@solana/spl-token";
+import {
+  TOKEN_2022_PROGRAM_ID,
+  ASSOCIATED_TOKEN_PROGRAM_ID,
+  getOrCreateAssociatedTokenAccount,
+  transferChecked,
+} from "@solana/spl-token";
 import { connection, COMMITMENT } from "./config";
 import { MOCK_MODE } from "./wallet";
 import { simGetOrCreateAta, simTransferTokens } from "./simulator";
@@ -13,7 +18,9 @@ export async function createInvestorRecord(
     ataAddress = await simGetOrCreateAta(mintAddress, wallet.publicKey);
   } else {
     const ata = await getOrCreateAssociatedTokenAccount(
-      connection, wallet, mintAddress, wallet.publicKey, false, COMMITMENT
+      connection, wallet, mintAddress, wallet.publicKey,
+      false, COMMITMENT, undefined,
+      TOKEN_2022_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID
     );
     ataAddress = ata.address;
   }
@@ -32,11 +39,20 @@ export async function purchaseShares(
       property.mintAddress, issuer.publicKey, investor.wallet.publicKey, BigInt(shareAmount)
     );
   } else {
-    signature = await transfer(
-      connection, issuer, issuerTokenAccount, investor.tokenAccount,
-      issuer, BigInt(shareAmount), [], { commitment: COMMITMENT }
+    // Use transferChecked with Token-2022; decimals = 0 for whole shares
+    signature = await transferChecked(
+      connection, issuer,
+      issuerTokenAccount, property.mintAddress,
+      investor.tokenAccount, issuer,
+      BigInt(shareAmount), property.decimals,
+      [], { commitment: COMMITMENT },
+      TOKEN_2022_PROGRAM_ID
     );
   }
   investor.sharesOwned += shareAmount;
-  return { investor, sharesBought: shareAmount, usdValue: Math.round(shareAmount * property.pricePerShareUsd), transferSignature: signature };
+  return {
+    investor, sharesBought: shareAmount,
+    usdValue: Math.round(shareAmount * property.pricePerShareUsd),
+    transferSignature: signature,
+  };
 }

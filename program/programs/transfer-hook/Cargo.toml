@@ -1,0 +1,22 @@
+[package]
+name = "transfer-hook"
+version = "0.1.0"
+description = "Token-2022 TransferHook for KYC whitelist verification"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "transfer_hook"
+
+[features]
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+cpi = ["no-entrypoint"]
+default = []
+
+[dependencies]
+anchor-lang = "0.30.1"
+anchor-spl = { version = "0.30.1", features = ["token_2022", "token_2022_extensions"] }
+spl-transfer-hook-interface = "0.6.3"
+spl-tlv-account-resolution = "0.6.3"

@@ -1,10 +1,12 @@
 import chalk from "chalk";
-import { connection, DEMO_PROPERTY, INVESTOR_PURCHASES, SECONDARY_TRANSFER_SHARES, ANNUAL_YIELD_SOL } from "./config";
+import { connection, DEMO_PROPERTY, INVESTOR_PURCHASES, SECONDARY_TRANSFER_SHARES, ANNUAL_YIELD_USDC, USDC_MINT_DEVNET, USDC_DECIMALS } from "./config";
 import { generateKeypair, fundWalletsFromIssuer, getBalanceSol, setMockMode } from "./wallet";
 import { tokenizeProperty } from "./property";
 import { createInvestorRecord, purchaseShares } from "./investors";
 import { transferShares, getOwnershipSnapshot } from "./marketplace";
 import { distributeYield } from "./yield";
+import { simFundUsdcPool } from "./simulator";
+import { PublicKey } from "@solana/web3.js";
 import {
   printBanner, printPhaseHeader, printStep, printInfo, printWarn, printError,
   printSeparator, printWalletTable, printPropertyCard, printPurchaseTable,
@@ -61,6 +63,7 @@ async function main(): Promise<void> {
 
   const tokenResult = await tokenizeProperty(DEMO_PROPERTY, issuer);
   printPropertyCard(tokenResult);
+  printStep("Token Standard",    "Token-2022 + TransferHook (KYC)");
   printStep("Mint authority",    "Issuer (Property Owner)");
   printStep("Freeze authority",  "None — freely transferable");
   console.log();
@@ -99,8 +102,12 @@ async function main(): Promise<void> {
   printOwnershipTable(getOwnershipSnapshot(investorRecords, DEMO_PROPERTY.totalShares));
 
   // ── PHASE 4: Yield distribution ───────────────────────────────────────────
-  printPhaseHeader(4, "YIELD DISTRIBUTION (Annual Rental Income)");
-  const yieldResult = await distributeYield(ANNUAL_YIELD_SOL, tokenResult.property, investorRecords, issuer);
+  printPhaseHeader(4, "YIELD DISTRIBUTION (Annual Rental Income — USDC)");
+  // In mock mode: pre-seed the issuer's USDC balance for the yield pool
+  if (!useDevnet) {
+    await simFundUsdcPool(issuer, new PublicKey(USDC_MINT_DEVNET), ANNUAL_YIELD_USDC, USDC_DECIMALS);
+  }
+  const yieldResult = await distributeYield(ANNUAL_YIELD_USDC, tokenResult.property, investorRecords, issuer);
   printYieldReport(yieldResult);
 
   // ── PHASE 5: Final state ──────────────────────────────────────────────────

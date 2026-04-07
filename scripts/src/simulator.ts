@@ -41,6 +41,21 @@ export function simGetBalance(pubkey: PublicKey): number {
   return (balances.get(pubkey.toBase58()) ?? 0) / LAMPORTS_PER_SOL;
 }
 
+/**
+ * Pre-seeds the in-memory USDC balance for a yield pool wallet.
+ * Call before distributeYield() in mock mode.
+ */
+export async function simFundUsdcPool(
+  yieldPayer: Keypair,
+  usdcMint: PublicKey,
+  amountUsdc: number,
+  usdcDecimals: number
+): Promise<void> {
+  const key = ataKey(usdcMint, yieldPayer.publicKey);
+  const atomic = BigInt(Math.floor(amountUsdc * 10 ** usdcDecimals));
+  tokenAccounts.set(key, (tokenAccounts.get(key) ?? BigInt(0)) + atomic);
+}
+
 let mintCounter = 0;
 export async function simCreateMint(issuer: Keypair): Promise<PublicKey> {
   await delay(700);

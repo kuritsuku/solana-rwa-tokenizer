@@ -45,13 +45,13 @@ export interface TransferResult {
 
 export interface YieldEntry {
   investor: InvestorRecord;
-  yieldSol: number;
+  yieldUsdc: number;   // in full USDC (e.g. 2.5 = $2.50)
   ownershipPercent: number;
   signature: string;
 }
 
 export interface YieldDistribution {
-  totalYieldSol: number;
+  totalYieldUsdc: number;
   property: PropertyRecord;
   distributions: YieldEntry[];
 }

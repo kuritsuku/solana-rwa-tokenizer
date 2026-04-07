@@ -21,5 +21,17 @@ export const INVESTOR_PURCHASES = [
 ];
 
 export const SECONDARY_TRANSFER_SHARES = 50_000;
-export const ANNUAL_YIELD_SOL = 0.3;
+
+// USDC yield pool (replaces SOL — 30 USDC annual rental income for demo)
+export const ANNUAL_YIELD_USDC = 30; // in USDC (6 decimals → × 1_000_000)
+// Devnet USDC mint: https://explorer.solana.com/address/Gh9ZwEmdLJ8DscKNTkTqPbNwLNNBjuSzaG9Vp2KGtKJr?cluster=devnet
+export const USDC_MINT_DEVNET = "Gh9ZwEmdLJ8DscKNTkTqPbNwLNNBjuSzaG9Vp2KGtKJr";
+export const USDC_DECIMALS = 6;
+
 export const AIRDROP_SOL = 2;
+
+// Anchor program ID (deployed on Devnet via Solana Playground)
+export const RWA_PROGRAM_ID = "4d7BYXSKiHwCN48E9oTBdXVjyw9Q27vMePkz3TgQH53N";
+
+// Token-2022 TransferHook program ID (deployed on Devnet)
+export const TRANSFER_HOOK_PROGRAM_ID = "DueqM2eEUpHR7SFm957Xd8kAmykXKUqjy1sLoXHVwv3p";

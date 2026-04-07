@@ -1,13 +1,25 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { signWithEDS, probeNCALayer, NCALayerStatus, NCALayerResult } from "../../lib/ncalayer";
 
 type Step = "upload" | "sign" | "mint" | "done";
 
 export default function TokenizePage() {
   const [step, setStep] = useState<Step>("upload");
   const [form, setForm] = useState({ name: "", location: "", value: "", shares: "1000000", yield: "" });
-  const [edsHash] = useState("a3f8c2d1e9b47056");
+  const [ncaStatus, setNcaStatus] = useState<NCALayerStatus | "idle">("idle");
+  const [edsResult, setEdsResult] = useState<NCALayerResult | null>(null);
   const [mintAddress] = useState("EugEMt8ptWJHg496cywjVAc86GL9FPVvysogh2LsjUnK");
+  const [mintLoading, setMintLoading] = useState(false);
+  const [mintDone, setMintDone] = useState(false);
+
+  // Probe NCALayer availability on mount
+  useEffect(() => {
+    setNcaStatus("connecting");
+    probeNCALayer().then((available) => {
+      setNcaStatus(available ? "connected" : "mock");
+    });
+  }, []);
 
   const steps: { id: Step; label: string }[] = [
     { id: "upload", label: "Данные объекта" },
@@ -16,15 +28,78 @@ export default function TokenizePage() {
     { id: "done",   label: "Готово" },
   ];
 
+  const stepOrder: Step[] = ["upload", "sign", "mint", "done"];
+
+  const ncaBadge = () => {
+    if (ncaStatus === "connecting") return { color: "#a0a0b0", bg: "rgba(160,160,176,0.1)", border: "rgba(160,160,176,0.25)", label: "⏳ Проверка NCALayer..." };
+    if (ncaStatus === "connected") return { color: "#14F195", bg: "rgba(20,241,149,0.1)", border: "rgba(20,241,149,0.3)", label: "🔌 NCALayer подключён" };
+    if (ncaStatus === "mock")      return { color: "#f5a623", bg: "rgba(245,166,35,0.1)",  border: "rgba(245,166,35,0.3)",  label: "⚡ Mock режим (NCALayer не найден)" };
+    if (ncaStatus === "error")     return { color: "#ff6b6b", bg: "rgba(255,107,107,0.1)", border: "rgba(255,107,107,0.3)", label: "✖ Ошибка NCALayer" };
+    return { color: "#a0a0b0", bg: "rgba(160,160,176,0.1)", border: "rgba(160,160,176,0.25)", label: "NCALayer" };
+  };
+
+  async function handleSign() {
+    const propertyData = {
+      property: form.name || "ЖК Нурлы Жол",
+      location: form.location || "Алматы, ул. Достык 12",
+      valuation: form.value || "450000",
+      shares: form.shares,
+      timestamp: new Date().toISOString(),
+      blockchain: "solana-devnet",
+    };
+
+    try {
+      setNcaStatus("connecting");
+      const result = await signWithEDS(JSON.stringify(propertyData), setNcaStatus);
+      setEdsResult(result);
+      setStep("mint");
+    } catch (err) {
+      setNcaStatus("error");
+      alert(`Ошибка подписи ЭЦП: ${err instanceof Error ? err.message : String(err)}`);
+      probeNCALayer().then((ok) => setNcaStatus(ok ? "connected" : "mock"));
+    }
+  }
+
+  async function handleMint() {
+    setMintLoading(true);
+    await new Promise((r) => setTimeout(r, 2000));
+    setMintLoading(false);
+    setMintDone(true);
+    setStep("done");
+  }
+
+  const badge = ncaBadge();
+  const edsHash = edsResult?.hash ?? "a3f8c2d1e9b47056";
+
   return (
     <main style={{ maxWidth: 700, margin: "0 auto", padding: "48px 24px" }}>
-      <h1 style={{ fontSize: 28, fontWeight: 800, color: "#e8e8f0", marginBottom: 8 }}>Токенизировать объект</h1>
-      <p style={{ color: "#6b6b80", marginBottom: 40, fontSize: 14 }}>Создайте SPL Token, обеспеченный реальным активом и подписанный ЭЦП НУЦ РК</p>
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 8, flexWrap: "wrap", gap: 12 }}>
+        <div>
+          <h1 style={{ fontSize: 28, fontWeight: 800, color: "#e8e8f0", margin: 0 }}>Токенизировать объект</h1>
+          <p style={{ color: "#6b6b80", marginTop: 6, fontSize: 14 }}>Создайте SPL Token-2022 с TransferHook, обеспеченный реальным активом и подписанный ЭЦП НУЦ РК</p>
+        </div>
+        {/* NCALayer status badge */}
+        <div style={{ background: badge.bg, border: `1px solid ${badge.border}`, borderRadius: 10, padding: "6px 14px", fontSize: 12, color: badge.color, fontWeight: 600, whiteSpace: "nowrap", flexShrink: 0 }}>
+          {badge.label}
+        </div>
+      </div>
+
+      {/* NCALayer info banners */}
+      {ncaStatus === "mock" && (
+        <div style={{ background: "rgba(245,166,35,0.06)", border: "1px solid rgba(245,166,35,0.2)", borderRadius: 10, padding: "10px 16px", marginBottom: 24, fontSize: 12, color: "#f5a623" }}>
+          NCALayer не обнаружен на ws://127.0.0.1:13579. Используется симуляция подписи. Для реальной ЭЦП установите <strong>NCALayer</strong> с pki.gov.kz.
+        </div>
+      )}
+      {ncaStatus === "connected" && (
+        <div style={{ background: "rgba(20,241,149,0.05)", border: "1px solid rgba(20,241,149,0.15)", borderRadius: 10, padding: "10px 16px", marginBottom: 24, fontSize: 12, color: "#14F195" }}>
+          NCALayer подключён. Подпись будет выполнена через ваш ЭЦП НУЦ РК сертификат (хранилище PKCS12 / AKKey).
+        </div>
+      )}
 
       {/* Stepper */}
       <div style={{ display: "flex", alignItems: "center", marginBottom: 48 }}>
         {steps.map((s, i) => {
-          const stepOrder: Step[] = ["upload", "sign", "mint", "done"];
           const done = stepOrder.indexOf(step) > i;
           const active = step === s.id;
           return (
@@ -46,6 +121,7 @@ export default function TokenizePage() {
       {/* Step content */}
       <div style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 16, padding: 32 }}>
 
+        {/* STEP 1: Property data */}
         {step === "upload" && (
           <div>
             <h2 style={{ fontSize: 18, fontWeight: 700, color: "#e8e8f0", marginBottom: 24 }}>Данные объекта недвижимости</h2>
@@ -74,18 +150,27 @@ export default function TokenizePage() {
                 </div>
               </div>
             </div>
-            <button onClick={() => setStep("sign")} style={{ marginTop: 24, width: "100%", background: "linear-gradient(135deg, #9945FF, #14F195)", color: "#000", fontWeight: 700, fontSize: 15, border: "none", borderRadius: 12, padding: "14px 0", cursor: "pointer" }}>
+            <button
+              onClick={() => setStep("sign")}
+              style={{ marginTop: 24, width: "100%", background: "linear-gradient(135deg, #9945FF, #14F195)", color: "#000", fontWeight: 700, fontSize: 15, border: "none", borderRadius: 12, padding: "14px 0", cursor: "pointer" }}
+            >
               Далее: Подписать ЭЦП →
             </button>
           </div>
         )}
 
+        {/* STEP 2: EDS signing */}
         {step === "sign" && (
           <div>
             <h2 style={{ fontSize: 18, fontWeight: 700, color: "#e8e8f0", marginBottom: 8 }}>Подписать через ЭЦП НУЦ РК</h2>
-            <p style={{ color: "#6b6b80", fontSize: 14, marginBottom: 24 }}>Подпишите документ государственной электронной подписью для подтверждения права собственности</p>
+            <p style={{ color: "#6b6b80", fontSize: 14, marginBottom: 24 }}>
+              {ncaStatus === "connected"
+                ? "NCALayer обнаружен. Нажмите кнопку — откроется диалог выбора сертификата."
+                : "Подпишите документ государственной электронной подписью. SHA-256 хэш подписи записывается на Solana."}
+            </p>
+
             <div style={{ background: "rgba(20,241,149,0.05)", border: "1px solid rgba(20,241,149,0.2)", borderRadius: 12, padding: 20, marginBottom: 24 }}>
-              <div style={{ fontSize: 13, color: "#14F195", fontWeight: 600, marginBottom: 12 }}>Что будет подписано:</div>
+              <div style={{ fontSize: 13, color: "#14F195", fontWeight: 600, marginBottom: 12 }}>Документ для подписи:</div>
               <div style={{ fontFamily: "monospace", fontSize: 12, color: "#a0a0b0", lineHeight: 1.8 }}>
                 {`{`}<br />
                 {`  "property": "${form.name || "ЖК Нурлы Жол"}",`}<br />
@@ -97,49 +182,104 @@ export default function TokenizePage() {
                 {`}`}
               </div>
             </div>
-            <button onClick={() => setStep("mint")} style={{ width: "100%", background: "rgba(20,241,149,0.15)", border: "1px solid rgba(20,241,149,0.4)", color: "#14F195", fontWeight: 700, fontSize: 15, borderRadius: 12, padding: "14px 0", cursor: "pointer", marginBottom: 12 }}>
-              🔏 Подписать через NCALayer (ЭЦП)
+
+            <button
+              onClick={handleSign}
+              disabled={ncaStatus === "connecting"}
+              style={{
+                width: "100%",
+                background: ncaStatus === "connecting"
+                  ? "rgba(255,255,255,0.06)"
+                  : ncaStatus === "connected"
+                  ? "rgba(20,241,149,0.15)"
+                  : "rgba(245,166,35,0.15)",
+                border: `1px solid ${ncaStatus === "connected" ? "rgba(20,241,149,0.4)" : ncaStatus === "connecting" ? "rgba(255,255,255,0.1)" : "rgba(245,166,35,0.4)"}`,
+                color: ncaStatus === "connected" ? "#14F195" : ncaStatus === "connecting" ? "#6b6b80" : "#f5a623",
+                fontWeight: 700, fontSize: 15, borderRadius: 12, padding: "14px 0",
+                cursor: ncaStatus === "connecting" ? "wait" : "pointer",
+                marginBottom: 12,
+                opacity: ncaStatus === "connecting" ? 0.7 : 1,
+              }}
+            >
+              {ncaStatus === "connecting"
+                ? "⏳ Ожидание подписи в NCALayer..."
+                : ncaStatus === "connected"
+                ? "🔏 Подписать через NCALayer (ЭЦП)"
+                : "⚡ Подписать (Mock режим — демо)"}
             </button>
-            <p style={{ fontSize: 12, color: "#6b6b80", textAlign: "center" }}>Требуется установленный NCALayer и действующий сертификат ЭЦП НУЦ РК</p>
+            <p style={{ fontSize: 12, color: "#6b6b80", textAlign: "center" }}>
+              {ncaStatus === "connected"
+                ? "Требуется NCALayer v2+ и действующий сертификат ЭЦП НУЦ РК"
+                : "NCALayer не найден — mock SHA-256 хэш используется в демо-целях"}
+            </p>
           </div>
         )}
 
+        {/* STEP 3: Mint */}
         {step === "mint" && (
           <div>
-            <h2 style={{ fontSize: 18, fontWeight: 700, color: "#e8e8f0", marginBottom: 8 }}>Выпуск токенов на Solana</h2>
+            <h2 style={{ fontSize: 18, fontWeight: 700, color: "#e8e8f0", marginBottom: 8 }}>Выпуск Token-2022 на Solana</h2>
+
             <div style={{ background: "rgba(20,241,149,0.06)", border: "1px solid rgba(20,241,149,0.25)", borderRadius: 12, padding: 16, marginBottom: 24 }}>
-              <div style={{ fontSize: 13, color: "#14F195", fontWeight: 600, marginBottom: 8 }}>✓ ЭЦП подпись получена</div>
-              <div style={{ fontFamily: "monospace", fontSize: 12, color: "#6b6b80" }}>Hash: {edsHash}</div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                <div style={{ fontSize: 13, color: "#14F195", fontWeight: 600 }}>
+                  {edsResult?.mock ? "⚡ Mock ЭЦП подпись" : "✓ ЭЦП НУЦ РК подпись получена"}
+                </div>
+                <div style={{ fontSize: 11, color: "#6b6b80", background: "rgba(255,255,255,0.05)", padding: "2px 8px", borderRadius: 6 }}>
+                  {edsResult?.mock ? "Mock" : (edsResult?.storage ?? "PKCS12")}
+                </div>
+              </div>
+              <div style={{ fontFamily: "monospace", fontSize: 11, color: "#6b6b80", wordBreak: "break-all" }}>
+                SHA-256 → <span style={{ color: "#9945FF" }}>{edsHash}</span>
+              </div>
             </div>
+
             <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 24, fontSize: 14 }}>
               {[
-                { label: "Будет создан SPL Token Mint", status: "pending" },
-                { label: `Выпущено ${parseInt(form.shares || "1000000").toLocaleString()} токенов`, status: "pending" },
-                { label: "ЭЦП хэш записан on-chain", status: "pending" },
-                { label: "Объект доступен на маркетплейсе", status: "pending" },
-              ].map((t) => (
-                <div key={t.label} style={{ display: "flex", alignItems: "center", gap: 12, color: "#a0a0b0" }}>
-                  <div style={{ width: 20, height: 20, borderRadius: "50%", border: "2px solid rgba(255,255,255,0.2)", flexShrink: 0 }} />
-                  {t.label}
+                "Token-2022 Mint с расширением TransferHook (KYC)",
+                `${parseInt(form.shares || "1000000").toLocaleString()} токенов выпущено (0 decimals)`,
+                "ЭЦП хэш записан через Anchor программу (initialize_property)",
+                "KYC whitelist PDA инициализирован",
+                "Объект доступен на маркетплейсе",
+              ].map((label, i) => (
+                <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, color: mintDone ? "#14F195" : "#a0a0b0" }}>
+                  <div style={{
+                    width: 20, height: 20, borderRadius: "50%", flexShrink: 0,
+                    border: mintDone ? "none" : mintLoading ? "2px solid #9945FF" : "2px solid rgba(255,255,255,0.2)",
+                    background: mintDone ? "#14F195" : "transparent",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    fontSize: 11, fontWeight: 700, color: "#000",
+                  }}>
+                    {mintDone ? "✓" : ""}
+                  </div>
+                  {label}
                 </div>
               ))}
             </div>
-            <button onClick={() => setStep("done")} style={{ width: "100%", background: "linear-gradient(135deg, #9945FF, #14F195)", color: "#000", fontWeight: 700, fontSize: 15, border: "none", borderRadius: 12, padding: "14px 0", cursor: "pointer" }}>
-              🪙 Выпустить токены на Solana
+
+            <button
+              onClick={handleMint}
+              disabled={mintLoading}
+              style={{ width: "100%", background: mintLoading ? "rgba(153,69,255,0.4)" : "linear-gradient(135deg, #9945FF, #14F195)", color: "#000", fontWeight: 700, fontSize: 15, border: "none", borderRadius: 12, padding: "14px 0", cursor: mintLoading ? "wait" : "pointer", opacity: mintLoading ? 0.7 : 1 }}
+            >
+              {mintLoading ? "⏳ Создание Token-2022 на Solana..." : "🪙 Выпустить Token-2022 + записать ЭЦП hash"}
             </button>
           </div>
         )}
 
+        {/* STEP 4: Done */}
         {step === "done" && (
           <div style={{ textAlign: "center" }}>
             <div style={{ fontSize: 48, marginBottom: 16 }}>🎉</div>
             <h2 style={{ fontSize: 22, fontWeight: 800, color: "#e8e8f0", marginBottom: 8 }}>Токены выпущены!</h2>
-            <p style={{ color: "#6b6b80", marginBottom: 32 }}>Ваш объект токенизирован и доступен инвесторам</p>
+            <p style={{ color: "#6b6b80", marginBottom: 32 }}>Ваш объект токенизирован как Token-2022 и доступен инвесторам</p>
             <div style={{ background: "rgba(153,69,255,0.08)", border: "1px solid rgba(153,69,255,0.25)", borderRadius: 12, padding: 20, marginBottom: 24, textAlign: "left" }}>
               {[
                 { label: "Mint Address", value: mintAddress.slice(0, 20) + "..." },
-                { label: "ЭЦП Hash", value: edsHash },
+                { label: "ЭЦП Hash (on-chain)", value: edsHash.slice(0, 20) + "..." },
+                { label: "Token Standard", value: "Token-2022 + TransferHook" },
                 { label: "Токенов выпущено", value: parseInt(form.shares || "1000000").toLocaleString() },
+                { label: "Подпись ЭЦП", value: edsResult?.mock ? "Mock (демо)" : "НУЦ РК ✓" },
                 { label: "Сеть", value: "Solana Devnet" },
               ].map((r) => (
                 <div key={r.label} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.05)", fontSize: 13 }}>

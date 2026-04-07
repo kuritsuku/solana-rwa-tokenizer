@@ -154,8 +154,8 @@ npm run dev   # → http://localhost:3000
 | Layer | Technology |
 |---|---|
 | Blockchain | Solana (Devnet / Mainnet) |
-| Token Standard | SPL Token (→ Token-2022 with TransferHook) |
-| Smart Contract | SPL Token Program + Anchor (custom program) |
+| Token Standard | Token-2022 with TransferHook (KYC whitelist) |
+| Smart Contract | Anchor program: initialize_property, buy_shares, distribute_yield |
 | Proof-of-Asset | Kazakhstan ЭЦП / NCA RK (SHA-256 hash on-chain) |
 | Frontend | Next.js 14, TypeScript, Tailwind CSS |
 | Wallet | Phantom (@solana/wallet-adapter) |
@@ -167,11 +167,11 @@ npm run dev   # → http://localhost:3000
 
 - [x] CLI end-to-end demo (simulation + Devnet)
 - [x] ЭЦП proof-of-asset integration
-- [ ] Anchor custom program deployment on Devnet
+- [x] Anchor custom program (`program/programs/rwa-tokenizer/`) — initialize_property, buy_shares, distribute_yield
 - [x] Next.js web UI with Phantom Wallet (live: https://solana-rwa-tokenizer.vercel.app)
-- [ ] Token-2022 TransferHook (KYC whitelist)
-- [ ] USDC yield distribution (instead of SOL)
-- [ ] Real NCALayer API integration
+- [x] Token-2022 TransferHook KYC whitelist (`program/programs/transfer-hook/`)
+- [x] USDC yield distribution (SPL token transfer, 6 decimals)
+- [x] NCALayer WebSocket integration (`app/lib/ncalayer.ts`) — real ЭЦП + mock fallback
 
 ---
 
