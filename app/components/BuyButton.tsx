@@ -2,7 +2,7 @@
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useWalletModal } from "@solana/wallet-adapter-react-ui";
 import { useState } from "react";
-import { Connection, clusterApiUrl, SystemProgram, Transaction, LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
+import { Connection, clusterApiUrl, SystemProgram, Transaction, LAMPORTS_PER_SOL } from "@solana/web3.js";
 
 interface BuyButtonProps {
   pricePerShare: number;
@@ -45,7 +45,8 @@ export default function BuyButton({ pricePerShare, propertyName }: BuyButtonProp
       const tx = new Transaction().add(
         SystemProgram.transfer({
           fromPubkey: publicKey,
-          toPubkey: new PublicKey("11111111111111111111111111111111"),
+          // Self-transfer for stable devnet demo confirmation in wallet UIs.
+          toPubkey: publicKey,
           lamports,
         })
       );
